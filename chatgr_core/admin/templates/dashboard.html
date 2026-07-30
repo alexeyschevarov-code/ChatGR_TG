@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>ChatGR — Dashboard</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1.5rem; }
+    .cards { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .card { background: #f1f5f9; padding: 1rem 1.25rem; border-radius: 8px; min-width: 120px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1.5rem; }
+    th, td { border: 1px solid #e2e8f0; padding: 0.5rem 0.75rem; text-align: left; }
+    th { background: #e2e8f0; }
+    a { color: #2563eb; }
+    .ban { color: #b91c1c; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>ChatGR Admin</h1>
+  <div class="cards">
+    <div class="card"><strong>{{ stats.users }}</strong><br>пользователей</div>
+    <div class="card"><strong>{{ stats.banned }}</strong><br>банов</div>
+    <div class="card"><strong>{{ stats.messages }}</strong><br>сообщений</div>
+    <div class="card"><strong>{{ stats.game_sessions }}</strong><br>игр</div>
+    <div class="card"><strong>{{ stats.total_xp }}</strong><br>сумма XP</div>
+  </div>
+
+  <h2>Пользователи (последние 50)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th><th>Имя</th><th>XP</th><th>Ур.</th><th>Режим</th><th>Статус</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.tg_user_id }}</td>
+        <td>{{ u.name or '—' }}</td>
+        <td>{{ u.xp }}</td>
+        <td>{{ u.level }}</td>
+        <td>{{ u.character }}</td>
+        <td>{% if u.is_banned %}<span class="ban">BAN</span>{% else %}ok{% endif %}</td>
+        <td><a href="/users/{{ u.tg_user_id }}">открыть</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>User {{ tg_user_id }}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1.5rem; max-width: 900px; }
+    .msg { border-left: 3px solid #94a3b8; padding: 0.5rem 0.75rem; margin: 0.5rem 0; background: #f8fafc; }
+    button { padding: 0.4rem 0.8rem; margin-right: 0.5rem; cursor: pointer; }
+    .ban { background: #b91c1c; color: #fff; border: 0; border-radius: 4px; }
+    .unban { background: #15803d; color: #fff; border: 0; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <p><a href="/dashboard">← Назад</a></p>
+  <h1>Пользователь {{ tg_user_id }}</h1>
+  {% if user %}
+  <p>
+    Имя: <strong>{{ user.name or '—' }}</strong><br>
+    XP: {{ user.xp }} · уровень {{ user.level }} · режим {{ user.character }}<br>
+    Статус: {% if user.is_banned %}<strong style="color:#b91c1c">ЗАБАНЕН</strong>{% else %}активен{% endif %}
+  </p>
+  {% if user.is_banned %}
+  <form method="post" action="/users/{{ tg_user_id }}/unban">
+    <button class="unban" type="submit">Разбанить</button>
+  </form>
+  {% else %}
+  <form method="post" action="/users/{{ tg_user_id }}/ban" onsubmit="return confirm('Забанить?')">
+    <button class="ban" type="submit">Забанить</button>
+  </form>
+  {% endif %}
+  {% else %}
+  <p>Пользователь не найден в БД.</p>
+  {% endif %}
+
+  <h2>Последние сообщения</h2>
+  {% for m in messages %}
+  <div class="msg">
+    <small>{{ m.created_at }} {% if m.topic %}· {{ m.topic }}{% endif %}</small><br>
+    <strong>Ты:</strong> {{ m.user_text }}<br>
+    <strong>Бот:</strong> {{ m.bot_text[:300] }}{% if m.bot_text and m.bot_text|length > 300 %}…{% endif %}
+  </div>
+  {% else %}
+  <p>Сообщений нет.</p>
+  {% endfor %}
+</body>
+</html>
