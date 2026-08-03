@@ -1,7 +1,7 @@
 """Константы и контент (общие для консоли и Telegram)."""
 from __future__ import annotations
 
-VERSION = "0.6.0 beta"
+VERSION = "0.8.0 beta"
 
 XP_PER_LEVEL = 100
 XP_TOPIC = 2
@@ -12,6 +12,7 @@ XP_GAME_WIN = 15
 XP_QUIZ_CORRECT = 10
 XP_QUIZ_FINISH_PER = 5
 PARROT_LIMIT = 3
+SPAM_SOFT_BAN_HITS = 50
 
 ACHIEVEMENT_NAMES = {
     "first_quiz": "Первая викторина",
@@ -21,6 +22,19 @@ ACHIEVEMENT_NAMES = {
     "xp_200": "200 XP",
     "first_guess": "Первое угаданное число",
     "topic_explorer": "Исследователь тем (5+ тем)",
+    "quiz_master": "Магистр викторин (10 побед)",
+    "quest_day": "День квестов (все 3 за день)",
+    "rich": "Богач (100 монет)",
+    "first_purchase": "Первая покупка в магазине",
+    "first_duel": "Первая дуэль",
+}
+
+QUIZ_CATEGORIES = {
+    "mixed": "Смешанная",
+    "space": "Космос",
+    "history": "История",
+    "games": "Игры",
+    "chatgr": "ChatGR",
 }
 
 CHARACTER_LABELS = {
@@ -52,15 +66,43 @@ QUIZ_START_PHRASES = (
     "давай викторин", "давай квиз", "играть в викторин",
 )
 
+# category: mixed|space|history|games|chatgr
 QUIZ_QUESTIONS = (
-    {"q": "Сколько планет в Солнечной системе?", "options": ("7", "8", "9"), "correct": 1},
-    {"q": "В каком году началась Вторая мировая?", "options": ("1939", "1941", "1914"), "correct": 0},
-    {"q": "Какой язык мы используем для ChatGR?", "options": ("Python", "Java", "C++"), "correct": 0},
-    {"q": "Как называется красная планета?", "options": ("Венера", "Марс", "Юпитер"), "correct": 1},
-    {"q": "Сколько месяцев в году?", "options": ("10", "12", "13"), "correct": 1},
-    {"q": "Кто написал «Войну и мир»?", "options": ("Толстой", "Пушкин", "Достоевский"), "correct": 0},
-    {"q": "Сколько континентов на Земле?", "options": ("5", "6", "7"), "correct": 1},
-    {"q": "Какой океан самый большой?", "options": ("Атлантический", "Тихий", "Северный Ледовитый"), "correct": 1},
+    # space
+    {"cat": "space", "q": "Сколько планет в Солнечной системе?", "options": ("7", "8", "9"), "correct": 1},
+    {"cat": "space", "q": "Как называется красная планета?", "options": ("Венера", "Марс", "Юпитер"), "correct": 1},
+    {"cat": "space", "q": "Ближайшая к Солнцу планета?", "options": ("Меркурий", "Венера", "Земля"), "correct": 0},
+    {"cat": "space", "q": "Спутник Земли?", "options": ("Фобос", "Луна", "Титан"), "correct": 1},
+    {"cat": "space", "q": "Самая большая планета Солнечной системы?", "options": ("Сатурн", "Юпитер", "Нептун"), "correct": 1},
+    {"cat": "space", "q": "Галактика, в которой мы живём?", "options": ("Андромеда", "Млечный Путь", "Треугольник"), "correct": 1},
+    # history
+    {"cat": "history", "q": "В каком году началась Вторая мировая?", "options": ("1939", "1941", "1914"), "correct": 0},
+    {"cat": "history", "q": "Кто написал «Войну и мир»?", "options": ("Толстой", "Пушкин", "Достоевский"), "correct": 0},
+    {"cat": "history", "q": "В каком году человек впервые высадился на Луну?", "options": ("1961", "1969", "1975"), "correct": 1},
+    {"cat": "history", "q": "Столица Древнего Египта (одна из)?", "options": ("Рим", "Фивы", "Афины"), "correct": 1},
+    {"cat": "history", "q": "Год начала Первой мировой?", "options": ("1914", "1917", "1939"), "correct": 0},
+    {"cat": "history", "q": "Кто изобрёл печатный станок?", "options": ("Гутенберг", "Эдисон", "Тесла"), "correct": 0},
+    # games
+    {"cat": "games", "q": "В Minecraft мир из…?", "options": ("Пикселей", "Блоков", "Полигонов"), "correct": 1},
+    {"cat": "game", "q": "Roblox — это в первую очередь?", "options": ("Платформа игр", "Только шутер", "Только гонки"), "correct": 0},
+    {"cat": "game", "q": "Сколько клеток на шахматной доске?", "options": ("64", "81", "100"), "correct": 0},
+    {"cat": "game", "q": "В футболе в команде на поле (без запасных)?", "options": ("9", "11", "12"), "correct": 1},
+    {"cat": "game", "q": "Жанр Minecraft по умолчанию?", "options": ("Песочница", "Только RPG", "Только гонки"), "correct": 0},
+    {"cat": "game", "q": "Консоль от Sony?", "options": ("Xbox", "PlayStation", "Switch"), "correct": 1},
+    # chatgr
+    {"cat": "chatgr", "q": "Какой язык мы используем для ChatGR?", "options": ("Python", "Java", "C++"), "correct": 0},
+    {"cat": "chatgr", "q": "ChatGR — это бот…?", "options": ("Без нейросети на правилах", "Только GPT", "Только калькулятор"), "correct": 0},
+    {"cat": "chatgr", "q": "Как сменить стиль общения?", "options": ("режим", "бан", "выход"), "correct": 0},
+    {"cat": "chatgr", "q": "За что дают XP?", "options": ("Темы и игры", "Только бан", "Никогда"), "correct": 0},
+    {"cat": "chatgr", "q": "Команда топа игроков?", "options": ("/leaderboard", "/delete", "/ban"), "correct": 0},
+    {"cat": "chatgr", "q": "Символ ChatGR (пасхалка)?", "options": ("Тигр", "Пингвин", "Робот"), "correct": 0},
+    # general / mixed fillers
+    {"cat": "mixed", "q": "Сколько месяцев в году?", "options": ("10", "12", "13"), "correct": 1},
+    {"cat": "mixed", "q": "Сколько континентов на Земле (часто в школе)?", "options": ("5", "6", "7"), "correct": 2},
+    {"cat": "mixed", "q": "Какой океан самый большой?", "options": ("Атлантический", "Тихий", "Индийский"), "correct": 1},
+    {"cat": "mixed", "q": "2 + 2 × 2 = ?", "options": ("6", "8", "4"), "correct": 0},
+    {"cat": "mixed", "q": "Столица Франции?", "options": ("Берлин", "Париж", "Рим"), "correct": 1},
+    {"cat": "mixed", "q": "H2O — это?", "options": ("Вода", "Воздух", "Соль"), "correct": 0},
 )
 
 RESPONSES = {

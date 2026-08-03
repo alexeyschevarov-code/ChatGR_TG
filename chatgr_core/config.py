@@ -34,7 +34,7 @@ _local_json = PROJECT_ROOT / "tg_data" / "users"
 _parent_json = PARENT_ROOT / "tg_data" / "users"
 JSON_USERS_DIR = _local_json if _local_json.exists() else _parent_json
 
-VERSION = "0.6.0 beta"
+VERSION = "0.8.0 beta"
 XP_PER_LEVEL = 100
 THROTTLE_RATE = float(os.getenv("THROTTLE_RATE", "0.7"))
 THROTTLE_BURST = int(os.getenv("THROTTLE_BURST", "3"))

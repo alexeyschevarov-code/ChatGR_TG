@@ -10,33 +10,50 @@ from chatgr_core.core.content import (
     XP_QUIZ_CORRECT,
     XP_QUIZ_FINISH_PER,
 )
+from chatgr_core.core.quests import complete_quest
 from chatgr_core.core.xp import add_xp, unlock_achievement
 
 
-def start_guess() -> dict[str, Any]:
+def start_guess(max_attempts: int = 10) -> dict[str, Any]:
     return {
         "type": "guess",
         "secret": random.randint(1, 100),
         "attempts": 0,
-        "max_attempts": 10,
+        "max_attempts": max_attempts,
     }
 
 
-def start_quiz(n: int = 5) -> dict[str, Any]:
-    sample = random.sample(list(QUIZ_QUESTIONS), min(n, len(QUIZ_QUESTIONS)))
+def _pool_for_category(category: str | None) -> list[dict]:
+    if not category or category == "mixed":
+        return list(QUIZ_QUESTIONS)
+    pool = [q for q in QUIZ_QUESTIONS if q.get("cat") == category]
+    return pool or list(QUIZ_QUESTIONS)
+
+
+def start_quiz(n: int = 5, category: str | None = "mixed") -> dict[str, Any]:
+    pool = _pool_for_category(category)
+    sample = random.sample(pool, min(n, len(pool)))
     questions = [
-        {"q": q["q"], "options": list(q["options"]), "correct": q["correct"]}
+        {
+            "q": q["q"],
+            "options": list(q["options"]),
+            "correct": q["correct"],
+            "cat": q.get("cat", "mixed"),
+        }
         for q in sample
     ]
-    return {"type": "quiz", "questions": questions, "index": 0, "score": 0}
+    return {
+        "type": "quiz",
+        "category": category or "mixed",
+        "questions": questions,
+        "index": 0,
+        "score": 0,
+    }
 
 
 class GuessGame:
     @staticmethod
     def handle(state: dict, user_input: str, profile: dict) -> tuple[dict | None, str, dict, list[str]]:
-        """
-        Returns: (new_state_or_None, reply_text, new_profile, notes)
-        """
         notes: list[str] = []
         profile = dict(profile)
         if user_input in ("стоп", "выход", "хватит"):
@@ -59,6 +76,8 @@ class GuessGame:
                 profile, title = unlock_achievement(profile, "guess_master")
                 if title:
                     notes.append(f"🏆 {title}")
+            profile, qnotes = complete_quest(profile, "guess_win")
+            notes.extend(qnotes)
             text = f"Верно! Это {secret}. Угадал за {tries} попыток. 🎉"
             if notes:
                 text += "\n" + "\n".join(notes)
@@ -74,8 +93,9 @@ class QuizGame:
     def current_question(state: dict) -> str:
         n = state["index"] + 1
         total = len(state["questions"])
+        cat = state.get("category", "mixed")
         q = state["questions"][state["index"]]["q"]
-        return f"Викторина — вопрос {n}/{total}\n\n{q}"
+        return f"Викторина [{cat}] — вопрос {n}/{total}\n\n{q}"
 
     @staticmethod
     def options(state: dict) -> list[str]:
@@ -95,9 +115,6 @@ class QuizGame:
     def answer(
         state: dict, choice: int, profile: dict
     ) -> tuple[dict | None, str, dict, list[str], bool]:
-        """
-        Returns: (new_state, text, profile, notes, finished)
-        """
         notes: list[str] = []
         profile = dict(profile)
         state = dict(state)
@@ -129,6 +146,16 @@ class QuizGame:
                 profile, title = unlock_achievement(profile, "perfect_quiz")
                 if title:
                     notes.append(f"🏆 {title}")
+            won = total > 0 and score > total // 2
+            if won:
+                profile, qnotes = complete_quest(profile, "quiz_win")
+                notes.extend(qnotes)
+                wins = int(profile.get("quiz_wins") or 0) + 1
+                profile["quiz_wins"] = wins
+                if wins >= 10:
+                    profile, title = unlock_achievement(profile, "quiz_master")
+                    if title:
+                        notes.append(f"🏆 {title}")
             text = f"{feedback}\n\nВикторина окончена! Счёт: {score} из {total}. 🎉"
             if notes:
                 text += "\n" + "\n".join(notes)

@@ -14,7 +14,7 @@ from chatgr_core.repositories.users import UserRepository
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-app = FastAPI(title="ChatGR Admin", version="0.6.0")
+app = FastAPI(title="ChatGR Admin", version="0.7.0")
 
 
 def get_repo() -> UserRepository:

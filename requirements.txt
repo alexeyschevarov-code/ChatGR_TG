@@ -1,0 +1,14 @@
+# ChatGR TG 0.6.0 beta
+# Рекомендуется Python 3.11–3.13 (не 3.15 beta)
+
+aiogram>=3.4.0
+aiohttp>=3.9.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+jinja2>=3.1.0
+python-multipart>=0.0.9
+python-dotenv>=1.0.0
+pytest>=8.0.0
+
+# Legacy: ChatGR_TG.py (telebot)
+pyTelegramBotAPI>=4.14.0

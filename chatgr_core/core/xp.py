@@ -56,4 +56,18 @@ def check_progress_achievements(profile: dict, topic_count: int = 0) -> list[str
         profile, title = unlock_achievement(profile, "topic_explorer")
         if title:
             notes.append(f"🏆 {title}")
+    coins = int(profile.get("coins") or 0)
+    if coins >= 100:
+        profile, title = unlock_achievement(profile, "rich")
+        if title:
+            notes.append(f"🏆 {title}")
+    dq = profile.get("daily_quests") or {}
+    if dq.get("bonus_claimed"):
+        profile, title = unlock_achievement(profile, "quest_day")
+        if title:
+            notes.append(f"🏆 {title}")
+    if int(profile.get("quiz_wins") or 0) >= 10:
+        profile, title = unlock_achievement(profile, "quiz_master")
+        if title:
+            notes.append(f"🏆 {title}")
     return notes

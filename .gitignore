@@ -1,0 +1,22 @@
+# секреты
+.env
+.venv/
+venv/
+
+# данные пользователей и логи
+tg_data/
+data/
+logs/
+*.db
+*.db-journal
+*.json.bak
+
+# кэш
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# ОС
+.DS_Store
+Thumbs.db
