@@ -35,10 +35,20 @@ from chatgr_core.core.duel import (
 )
 from chatgr_core.core.games import GuessGame, QuizGame, start_guess, start_quiz
 from chatgr_core.core.quests import complete_quest, ensure_daily_quests, format_quests_text
+from chatgr_core.core.changelog import format_changelog
+from chatgr_core.core.economy import format_economy, try_weekly_bonus
+from chatgr_core.core.facts import format_daily_fact
 from chatgr_core.core.shop import buy_item, ensure_inventory, format_shop, has_flag, set_title, use_consumable
 from chatgr_core.core.style import decorate_text, reaction_emoji
 from chatgr_core.core.topics import find_mood, find_topic
-from chatgr_core.core.xp import add_xp, check_progress_achievements, level_from_xp, xp_to_next
+from chatgr_core.core.xp import (
+    achievements_progress,
+    add_xp,
+    check_progress_achievements,
+    level_from_xp,
+    level_title,
+    xp_to_next,
+)
 
 
 @dataclass
@@ -60,6 +70,7 @@ def default_state() -> dict[str, Any]:
     return {
         "character": "обычный",
         "last_topic": None,
+        "recent_topics": [],  # последние 5 тем для контекста
         "game_state": None,
         "name": None,
         "recent_msgs": [],
@@ -67,7 +78,17 @@ def default_state() -> dict[str, Any]:
         "spam_hits": 0,
         "session_msgs": 0,
         "session_xp": 0,
+        "onboarding_step": 0,  # 0 done, 1 name, 2 quest, 3 quiz hint
     }
+
+
+def _push_topic(state: dict, topic: str | None) -> None:
+    if not topic or topic == "настроение":
+        return
+    state["last_topic"] = topic
+    recent = [t for t in (state.get("recent_topics") or []) if t != topic]
+    recent.insert(0, topic)
+    state["recent_topics"] = recent[:5]
 
 
 def default_profile() -> dict[str, Any]:
@@ -85,6 +106,8 @@ def default_profile() -> dict[str, Any]:
         "daily_quests": {},
         "reminders": {"enabled": False, "hour": 10},
         "inventory": {},
+        "economy": {},
+        "onboarding_done": False,
     }
 
 
@@ -148,16 +171,16 @@ def format_profile(state: dict, profile: dict) -> str:
         lines.append(f"Имя: {state['name']}")
     xp = int(profile.get("xp") or 0)
     level = level_from_xp(xp)
-    lines.append(f"Уровень: {level}")
+    lines.append(f"Уровень: {level} — {level_title(level)}")
     lines.append(f"XP: {xp} (до следующего: {xp_to_next(xp, level)})")
     lines.append(f"Монеты: {int(profile.get('coins') or 0)} 🪙")
+    u, t, pct = achievements_progress(profile)
+    lines.append(f"Ачивки: {u}/{t} ({pct}%)")
     lines.append(f"Побед в викторине: {int(profile.get('quiz_wins') or 0)}")
     lines.append(f"Любимая игра: {profile.get('favorite_game') or '—'}")
     lines.append(f"Хобби: {profile.get('hobby') or '—'}")
     rem = profile.get("reminders") or {}
-    lines.append(
-        f"Напоминания: {'вкл' if rem.get('enabled') else 'выкл'}"
-    )
+    lines.append(f"Напоминания: {'вкл' if rem.get('enabled') else 'выкл'}")
     ach = profile.get("achievements") or []
     lines.append("")
     lines.append("── Ачивки ──")
@@ -168,6 +191,8 @@ def format_profile(state: dict, profile: dict) -> str:
             lines.append(f"  🏆 {ACHIEVEMENT_NAMES.get(a, a)}")
     else:
         lines.append("  Пока пусто!")
+    lines.append("")
+    lines.append(format_economy(profile))
     return "\n".join(lines)
 
 
@@ -181,12 +206,12 @@ def format_help(state: dict) -> str:
     lines += [
         "",
         "Команды:",
-        "  помощь | профиль | память | квесты | сессия",
-        "  магазин | купить ID | дуэль | дуэль КОД",
-        "  режим | играть | викторина | угадай число | рекорды",
+        "  помощь | профиль | память | квесты | сессия | факт",
+        "  магазин | купить ID | дуэль | что нового | экспорт",
+        "  бонус недели | режим | играть | викторина | рекорды",
         "  напомни / стоп напоминаний",
         "",
-        "Монеты → магазин. Дуэль vs бот или друг по коду.",
+        "Монеты → магазин. Есть дневные лимиты XP/монет.",
     ]
     return "\n".join(lines)
 
@@ -231,8 +256,55 @@ class DialogEngine:
         if not user_input:
             return DialogResult("Напиши хоть что-нибудь! ✍️", state, profile)
 
+        # ---- onboarding steps 1–3 ----
+        step = int(state.get("onboarding_step") or 0)
+        if step == 1:
+            if "меня зовут" in user_input:
+                rest = user_input.split("меня зовут", 1)[1].strip(" .,!?")
+                if rest:
+                    state["name"] = rest.split()[0].capitalize()
+            elif len(words) == 1 and words[0].isalpha() and len(words[0]) > 1:
+                state["name"] = words[0].capitalize()
+            if state.get("name"):
+                state["onboarding_step"] = 2
+                return DialogResult(
+                    f"Приятно, {state['name']}! 🐯\n\n"
+                    f"<b>Шаг 2/3</b> — открой квесты: напиши <b>квесты</b>.",
+                    state,
+                    profile,
+                )
+            return DialogResult(
+                "Напиши имя: <b>меня зовут …</b> или одно слово.",
+                state,
+                profile,
+            )
+        if step == 2:
+            if "квест" in user_input or user_input in ("задания", "daily"):
+                state["onboarding_step"] = 3
+                return DialogResult(
+                    format_quests_text(profile)
+                    + "\n\n<b>Шаг 3/3</b> — напиши <b>викторина</b>.",
+                    state,
+                    profile,
+                )
+            return DialogResult("Сначала: <b>квесты</b> 📋", state, profile)
+        if step == 3:
+            if "викторин" in user_input or user_input in ("квиз", "quiz"):
+                state["onboarding_step"] = 0
+                profile["onboarding_done"] = True
+                return DialogResult(
+                    "Онбординг готов! 🎉 Выбери категорию:",
+                    state,
+                    profile,
+                    keyboard="quiz_cat",
+                )
+            return DialogResult("Почти! Напиши <b>викторина</b> 📚", state, profile)
+
         if (
-            user_input not in ("помощь", "квесты", "память", "магазин", "сессия")
+            user_input not in (
+                "помощь", "квесты", "память", "магазин", "сессия",
+                "факт", "экспорт", "что нового",
+            )
             and len(recent) >= PARROT_LIMIT
             and all(m == user_input for m in recent[-PARROT_LIMIT:])
         ):
@@ -311,11 +383,34 @@ class DialogEngine:
         if user_input in ("помощь", "команды", "что ты умеешь"):
             return DialogResult(format_help(state), state, profile)
 
+        if user_input in ("что нового", "новости", "changelog", "что нового?"):
+            return DialogResult(format_changelog(), state, profile)
+
+        if user_input in ("факт", "факт дня", "интересный факт"):
+            return DialogResult(
+                format_daily_fact(state.get("last_topic")),
+                state,
+                profile,
+            )
+
+        if user_input in ("бонус недели", "недельный бонус"):
+            profile, notes = try_weekly_bonus(profile)
+            return DialogResult("\n".join(notes), state, profile)
+
+        if user_input in ("экспорт", "export", "выгрузка"):
+            # handler will detect and send as file; here mark
+            state["_export"] = True
+            return DialogResult("Готовлю экспорт профиля…", state, profile)
+
         if user_input in ("мой профиль", "профиль", "покажи профиль"):
             return DialogResult(format_profile(state, profile), state, profile)
 
         if user_input in ("сессия", "статистика сессии", "статистика"):
-            return DialogResult(format_session(state, profile), state, profile)
+            return DialogResult(
+                format_session(state, profile) + "\n\n" + format_economy(profile),
+                state,
+                profile,
+            )
 
         if user_input in ("квесты", "квест", "задания", "daily"):
             return DialogResult(format_quests_text(profile), state, profile)
@@ -325,7 +420,9 @@ class DialogEngine:
 
         if user_input.startswith("купить "):
             item_id = user_input.split("купить ", 1)[1].strip()
-            profile, msg = buy_item(profile, item_id)
+            profile, msg, ok = buy_item(profile, item_id)
+            if ok:
+                state["_purchase"] = item_id
             return DialogResult(msg, state, profile, keyboard="shop")
 
         if user_input.startswith("титул "):
@@ -454,11 +551,10 @@ class DialogEngine:
                     text += "\n" + "\n".join(notes)
                 return DialogResult(text, state, profile, topic=lt)
 
-        mood = find_mood(words)
+        mood = find_mood(words, user_input)
         if mood:
             ans = _pick(MOOD_RESPONSES, mood, last_answers)
             profile, notes = add_xp(profile, XP_MOOD)
-            state["last_topic"] = "настроение"
             text = _style(ans, profile, "настроение") + _memory_hint(state)
             if notes:
                 text += "\n" + "\n".join(notes)
@@ -467,9 +563,15 @@ class DialogEngine:
                 emoji_burst=reaction_emoji("ok") if random.random() < 0.3 else None,
             )
 
-        topic = find_topic(user_input, words)
+        recent_topics = list(state.get("recent_topics") or [])
+        topic = find_topic(
+            user_input,
+            words,
+            last_topic=state.get("last_topic"),
+            recent_topics=recent_topics,
+        )
         if topic:
-            state["last_topic"] = topic
+            _push_topic(state, topic)
             counts = dict(state.get("topic_counts") or {})
             counts[topic] = counts.get(topic, 0) + 1
             state["topic_counts"] = counts
@@ -481,12 +583,14 @@ class DialogEngine:
             notes.extend(qnotes)
             if state.get("name") and random.random() < 0.3:
                 ans = f"{state['name']}, {ans[0].lower()}{ans[1:]}"
+            # если это продолжение контекста «а про…» — чуть яснее
+            if user_input.startswith("а про") or user_input.startswith("про "):
+                label = TOPIC_NAMES.get(topic, topic)
+                ans = f"Ок, про {label}. {ans}"
             text = _style(ans, profile, topic) + _memory_hint(state)
             if notes:
                 text += "\n" + "\n".join(notes)
-            burst = None
-            if random.random() < 0.35:
-                burst = reaction_emoji("ok")
+            burst = reaction_emoji("ok") if random.random() < 0.35 else None
             return DialogResult(
                 text, state, profile, topic=topic, quest_event="talk_topic", emoji_burst=burst
             )
@@ -496,7 +600,8 @@ class DialogEngine:
         if lt:
             label = TOPIC_NAMES.get(lt, lt)
             return DialogResult(
-                f"Не совсем понял 🤔 Говорили про {label} — «продолжи» или «помощь».",
+                f"Не совсем понял 🤔 Мы про {label} — напиши «продолжи», "
+                f"«а про …» (например «а про луну») или «помощь».",
                 state,
                 profile,
             )

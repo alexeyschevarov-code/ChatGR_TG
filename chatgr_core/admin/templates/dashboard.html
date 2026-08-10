@@ -15,7 +15,10 @@
   </style>
 </head>
 <body>
-  <h1>ChatGR Admin</h1>
+  <h1>ChatGR Admin <small>{{ version }}</small></h1>
+  {% if broadcast_ok is not none %}
+  <p style="color:#15803d">Рассылка: отправлено {{ broadcast_ok }} пользователям</p>
+  {% endif %}
   <div class="cards">
     <div class="card"><strong>{{ stats.users }}</strong><br>пользователей</div>
     <div class="card"><strong>{{ stats.banned }}</strong><br>банов</div>
@@ -25,7 +28,15 @@
     <div class="card"><strong>{{ stats.total_coins }}</strong><br>монет</div>
     <div class="card"><strong>{{ stats.dau_24h }}</strong><br>DAU 24ч</div>
     <div class="card"><strong>{{ stats.messages_24h }}</strong><br>сообщ. 24ч</div>
+    <div class="card"><strong>{{ stats.purchases }}</strong><br>покупок</div>
+    <div class="card"><strong>{{ stats.quiz_events }}</strong><br>квиз-событий</div>
   </div>
+
+  <h2>Рассылка (техработы / новости)</h2>
+  <form method="post" action="/broadcast" style="max-width:520px">
+    <textarea name="text" rows="3" style="width:100%;padding:0.5rem" placeholder="Текст всем незабаненным"></textarea>
+    <button type="submit" style="margin-top:0.5rem;padding:0.4rem 0.8rem">Отправить</button>
+  </form>
 
   <h2>Пользователи (последние 50)</h2>
   <table>

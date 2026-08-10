@@ -11,7 +11,7 @@ from chatgr_core.config import DATA_DIR, DB_PATH
 
 logger = logging.getLogger("chatgr_core.db")
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS users (
     reminders    TEXT NOT NULL DEFAULT '{}',
     spam_hits    INTEGER NOT NULL DEFAULT 0,
     is_banned    INTEGER NOT NULL DEFAULT 0,
+    ban_reason   TEXT,
     created_at   TEXT NOT NULL,
     updated_at   TEXT NOT NULL
 );
@@ -79,6 +80,20 @@ CREATE TABLE IF NOT EXISTS duels (
     created_at   TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS purchases (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    tg_user_id   TEXT NOT NULL,
+    item_id      TEXT NOT NULL,
+    created_at   TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS admin_logs (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind         TEXT NOT NULL,
+    detail       TEXT,
+    created_at   TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(tg_user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_achievements_user ON achievements(tg_user_id);
@@ -119,6 +134,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
             alters.append("ALTER TABLE users ADD COLUMN reminders TEXT NOT NULL DEFAULT '{}'")
         if "spam_hits" not in cols:
             alters.append("ALTER TABLE users ADD COLUMN spam_hits INTEGER NOT NULL DEFAULT 0")
+        if "ban_reason" not in cols:
+            alters.append("ALTER TABLE users ADD COLUMN ban_reason TEXT")
         for sql in alters:
             conn.execute(sql)
             logger.info("Migration: %s", sql)
@@ -151,6 +168,21 @@ def init_db(db_path: Path | None = None) -> Path:
     finally:
         conn.close()
     return path
+
+
+def verify_backup(backup_path: Path) -> bool:
+    """Проверка, что backup — читаемый SQLite с таблицей users."""
+    try:
+        conn = sqlite3.connect(str(backup_path))
+        try:
+            row = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
+            ).fetchone()
+            return bool(row)
+        finally:
+            conn.close()
+    except Exception:
+        return False
 
 
 def backup_db(db_path: Path | None = None, keep: int = 7) -> Path | None:

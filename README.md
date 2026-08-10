@@ -1,41 +1,53 @@
-﻿# ChatGR TG (beta)
+# ChatGR TG **1.0.0 beta**
 
-Telegram-версия ChatGR **без нейросети**. Консольный релиз — отдельно: [ChatGR](https://github.com/alexeyschevarov-code/ChatGR).
+Кандидат в релиз: Telegram-бот **без нейросети**  
+(темы, XP, монеты, квесты, викторина, дуэль, магазин, онбординг, лимиты, export).
 
-## Статус
-
-**Beta** — может меняться, не «официальный» релиз консоли.
-
-## Запуск
+## Запуск (одна команда)
 
 ```powershell
-# клон
-git clone https://github.com/alexeyschevarov-code/ChatGR_TG.git
-cd ChatGR_TG
-
-python -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-
-# токен бота (не коммить!)
-# создай файл .env: BOT_TOKEN=...
-
-$env:PYTHONPATH = (Get-Location).Path
-python main.py
+cd "C:\Users\User\OneDrive\Документы\MyPythonProjects"
+.\start_tg_bot.bat
 ```
 
-Или `.\start_tg_bot.ps1` / `start_tg_bot.bat` (если есть).
+Или:
 
-## Возможности (0.8.0 beta)
+```powershell
+cd "C:\Users\User\OneDrive\Документы\MyPythonProjects\ChatGR TG"
+$env:PYTHONPATH = (Get-Location).Path
+.\.venv\Scripts\python.exe main.py
+```
 
-- Темы, XP, монеты, квесты, викторина
-- Магазин, дуэль, эмодзи-ответы
-- SQLite, админка (экспериментально)
+Нужен `BOT_TOKEN` в `.env` (в этой папке или в `MyPythonProjects\.env`).
 
-## Не выкладывать
+Админка: `python run_admin.py` → http://127.0.0.1:8000 (`ADMIN_TOKEN`).
 
-`.env`, `tg_data/`, `data/`, `logs/`, `*.db` — см. `.gitignore`.
+## Что в 1.0.0 beta
 
-## Автор
+1. **Стабильность** — миграции БД v4, бэкап при старте и раз в 24ч, проверка backup  
+2. **Онбординг** — /start: имя → квесты → викторина  
+3. **Баланс** — лимит 80 XP / 40 🪙 в день, «бонус недели»  
+4. **Контент** — больше квиза, факт дня, changelog  
+5. **Профиль** — названия уровней, % ачивок, `/export`  
+6. **Админка** — причина бана, рассылка, покупки/квиз-статы  
+7. **Тесты** — pytest, `ChatGR_TG.py` = legacy  
 
-Лёша (alexeyschevarov-code)
+## Команды
+
+```
+/start /help /whatsnew /profile /export
+/quests /shop /play /quiz /duel /leaderboard
+/memory /session
+факт · бонус недели · что нового
+```
+
+## Legacy
+
+`ChatGR_TG.py` — старый telebot+JSON. **Не используй.** Только `main.py`.
+
+## Тесты
+
+```powershell
+$env:PYTHONPATH = (Get-Location).Path
+.\.venv\Scripts\python.exe -m pytest tests -q
+```

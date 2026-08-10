@@ -5,41 +5,49 @@ from typing import Any
 
 from chatgr_core.core.xp import unlock_achievement
 
+# Баланс 1.0: квест ~5🪙, все квесты ~25🪙/день → цены достижимы за 1–3 дня
 SHOP_ITEMS: dict[str, dict[str, Any]] = {
     "title_tiger": {
         "name": "Титул «Тигр» 🐯",
-        "price": 30,
+        "price": 25,
         "desc": "Показывается в профиле",
         "kind": "title",
         "value": "🐯 Тигр",
     },
     "title_legend": {
         "name": "Титул «Легенда» ⭐",
-        "price": 50,
+        "price": 45,
         "desc": "Показывается в профиле",
         "kind": "title",
         "value": "⭐ Легенда",
     },
     "emoji_rich": {
         "name": "Эмодзи-пак 🎉",
-        "price": 15,
+        "price": 12,
         "desc": "Больше эмодзи в ответах бота",
         "kind": "flag",
         "value": "emoji_rich",
     },
     "guess_plus3": {
         "name": "+3 попытки «угадай» 🎯",
-        "price": 20,
+        "price": 15,
         "desc": "Следующая игра «угадай число» — 13 попыток",
         "kind": "consumable",
         "value": "guess_plus3",
     },
     "quiz_reroll": {
         "name": "Реролл квиза 🔄",
-        "price": 10,
-        "desc": "Запас: +1 бесплатная «ещё раз» после квиза",
+        "price": 8,
+        "desc": "Запас: +1 «ещё раз» после квиза",
         "kind": "consumable",
         "value": "quiz_reroll",
+    },
+    "title_scout": {
+        "name": "Титул «Следопыт» 🧭",
+        "price": 20,
+        "desc": "Для любителей тем и фактов",
+        "kind": "title",
+        "value": "🧭 Следопыт",
     },
 }
 
@@ -83,15 +91,16 @@ def format_shop(profile: dict) -> str:
     return "\n".join(lines)
 
 
-def buy_item(profile: dict, item_id: str) -> tuple[dict, str]:
+def buy_item(profile: dict, item_id: str) -> tuple[dict, str, bool]:
+    """Returns (profile, message, purchased_ok)."""
     profile = ensure_inventory(profile)
     item = SHOP_ITEMS.get(item_id)
     if not item:
-        return profile, "Нет такого товара. Смотри «магазин»."
+        return profile, "Нет такого товара. Смотри «магазин».", False
     coins = int(profile.get("coins") or 0)
     price = int(item["price"])
     if coins < price:
-        return profile, f"Не хватает монет: нужно {price} 🪙, у тебя {coins}."
+        return profile, f"Не хватает монет: нужно {price} 🪙, у тебя {coins}.", False
 
     inv = profile["inventory"]
     kind = item["kind"]
@@ -100,14 +109,14 @@ def buy_item(profile: dict, item_id: str) -> tuple[dict, str]:
     if kind == "title":
         titles = list(inv.get("titles") or [])
         if value in titles:
-            return profile, "Этот титул уже куплен. Надень: «титул тигр» / «титул легенда»."
+            return profile, "Этот титул уже куплен. Надень: «титул тигр» / «титул легенда».", False
         titles.append(value)
         inv["titles"] = titles
         inv["active_title"] = value
     elif kind == "flag":
         flags = list(inv.get("flags") or [])
         if value in flags:
-            return profile, "Уже куплено."
+            return profile, "Уже куплено.", False
         flags.append(value)
         inv["flags"] = flags
     elif kind == "consumable":
@@ -115,13 +124,13 @@ def buy_item(profile: dict, item_id: str) -> tuple[dict, str]:
         cons[value] = int(cons.get(value) or 0) + 1
         inv["consumables"] = cons
     else:
-        return profile, "Неизвестный тип товара."
+        return profile, "Неизвестный тип товара.", False
 
     profile["coins"] = coins - price
     profile["inventory"] = inv
     profile, title = unlock_achievement(profile, "first_purchase")
     extra = f"\n🏆 {title}" if title else ""
-    return profile, f"Куплено: {item['name']} (−{price} 🪙). Осталось {profile['coins']} 🪙.{extra}"
+    return profile, f"Куплено: {item['name']} (−{price} 🪙). Осталось {profile['coins']} 🪙.{extra}", True
 
 
 def set_title(profile: dict, which: str) -> tuple[dict, str]:
@@ -131,6 +140,7 @@ def set_title(profile: dict, which: str) -> tuple[dict, str]:
     mapping = {
         "тигр": "🐯 Тигр",
         "легенда": "⭐ Легенда",
+        "следопыт": "🧭 Следопыт",
     }
     value = mapping.get(which)
     if not value or value not in titles:

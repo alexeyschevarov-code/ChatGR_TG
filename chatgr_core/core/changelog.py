@@ -1,0 +1,41 @@
+"""Changelog для команды «что нового»."""
+from __future__ import annotations
+
+from chatgr_core.core.content import VERSION
+
+CHANGELOG = [
+    (
+        "1.0.0 beta",
+        [
+            "Онбординг: имя → квест → викторина",
+            "Лимиты XP/монет в день + бонус недели",
+            "Уровни с названиями, % ачивок, /export",
+            "Факт дня, больше квиза и фраз",
+            "Админка: причина бана, рассылка, статистика",
+            "Стабильность: бэкап, миграции, тесты",
+        ],
+    ),
+    (
+        "0.9.0 beta",
+        ["Контекст, синонимы, больше фраз"],
+    ),
+    (
+        "0.8.0 beta",
+        ["Магазин, дуэль, эмодзи, UX"],
+    ),
+    (
+        "0.7.0",
+        ["Квесты, монеты, категории викторины"],
+    ),
+]
+
+
+def format_changelog(limit: int = 3) -> str:
+    lines = [f"── Что нового (сейчас {VERSION}) ──", ""]
+    for ver, items in CHANGELOG[:limit]:
+        lines.append(f"<b>{ver}</b>")
+        for it in items:
+            lines.append(f"  • {it}")
+        lines.append("")
+    lines.append("Команды: /help · /start · /export · факт")
+    return "\n".join(lines)

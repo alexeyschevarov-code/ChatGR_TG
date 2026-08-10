@@ -1,3 +1,12 @@
+"""
+LEGACY (устарел). Не используй для продакшена.
+
+Актуальный бот 1.0.0 beta:
+  python main.py
+  (из папки ChatGR TG, venv .venv на Python 3.12)
+
+Этот файл — старая версия telebot + JSON, оставлен только для истории.
+"""
 import json
 import os
 import random
@@ -16,9 +25,10 @@ if not TOKEN:
     print("Ошибка: Переменная BOT_TOKEN не найдена в файле .env!")
     exit()
 
+print("⚠ LEGACY ChatGR_TG.py — лучше: python main.py")
 bot = telebot.TeleBot(TOKEN)
 
-VERSION = "0.6.0 beta"
+VERSION = "0.6.0 beta (legacy)"
 PROJECT_DIR = Path(__file__).parent
 USER_DATA_DIR = PROJECT_DIR / "tg_data" / "users"
 USER_BACKUP_DIR = USER_DATA_DIR / "backups"

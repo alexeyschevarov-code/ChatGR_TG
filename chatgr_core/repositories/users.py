@@ -46,13 +46,47 @@ class UserRepository:
         ).fetchone()
         return bool(row and row["is_banned"])
 
-    def set_banned(self, tg_user_id: str, banned: bool) -> None:
+    def set_banned(self, tg_user_id: str, banned: bool, reason: str | None = None) -> None:
         self.ensure_user(tg_user_id)
         self.conn.execute(
-            "UPDATE users SET is_banned = ?, updated_at = ? WHERE tg_user_id = ?",
-            (1 if banned else 0, _now(), str(tg_user_id)),
+            "UPDATE users SET is_banned = ?, ban_reason = ?, updated_at = ? WHERE tg_user_id = ?",
+            (1 if banned else 0, reason if banned else None, _now(), str(tg_user_id)),
         )
         self.conn.commit()
+        self.log_admin("ban" if banned else "unban", f"{tg_user_id}: {reason or ''}")
+
+    def get_ban_reason(self, tg_user_id: str) -> str | None:
+        try:
+            row = self.conn.execute(
+                "SELECT ban_reason FROM users WHERE tg_user_id = ?",
+                (str(tg_user_id),),
+            ).fetchone()
+            return row["ban_reason"] if row else None
+        except Exception:
+            return None
+
+    def log_purchase(self, tg_user_id: str, item_id: str) -> None:
+        self.conn.execute(
+            "INSERT INTO purchases (tg_user_id, item_id, created_at) VALUES (?, ?, ?)",
+            (str(tg_user_id), item_id, _now()),
+        )
+        self.conn.commit()
+
+    def log_admin(self, kind: str, detail: str = "") -> None:
+        try:
+            self.conn.execute(
+                "INSERT INTO admin_logs (kind, detail, created_at) VALUES (?, ?, ?)",
+                (kind, detail, _now()),
+            )
+            self.conn.commit()
+        except Exception:
+            pass
+
+    def list_user_ids(self) -> list[str]:
+        rows = self.conn.execute(
+            "SELECT tg_user_id FROM users WHERE is_banned = 0"
+        ).fetchall()
+        return [r["tg_user_id"] for r in rows]
 
     def load_dialog_context(self, tg_user_id: str) -> tuple[dict, dict]:
         self.ensure_user(tg_user_id)
@@ -284,6 +318,24 @@ class UserRepository:
             "SELECT COUNT(*) AS c FROM messages WHERE created_at >= ?",
             (day_ago,),
         ).fetchone()["c"]
+        purchases = 0
+        quizzes = 0
+        try:
+            purchases = self.conn.execute(
+                "SELECT COUNT(*) AS c FROM purchases"
+            ).fetchone()["c"]
+        except Exception:
+            pass
+        try:
+            quizzes = self.conn.execute(
+                "SELECT COUNT(*) AS c FROM game_sessions WHERE game_type LIKE '%quiz%' OR game_type = 'quiz'"
+            ).fetchone()["c"]
+            # also count messages with topic quiz
+            quizzes += self.conn.execute(
+                "SELECT COUNT(*) AS c FROM messages WHERE topic = 'quiz'"
+            ).fetchone()["c"]
+        except Exception:
+            pass
         return {
             "users": users,
             "banned": banned,
@@ -293,6 +345,8 @@ class UserRepository:
             "total_coins": total_coins,
             "dau_24h": dau,
             "messages_24h": msgs_today,
+            "purchases": purchases,
+            "quiz_events": quizzes,
         }
 
     def users_with_reminders(self) -> list[dict]:

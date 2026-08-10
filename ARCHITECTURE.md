@@ -1,30 +1,19 @@
-# ChatGR TG **0.7.0**
-
-## Фичи
-
-- Дневные квесты + монеты
-- Викторина по категориям (30 вопросов)
-- Память (имя, топ тем)
-- Напоминания (фоновый loop)
-- SQLite schema v2 + backup
-- Админка: DAU, coins, messages 24h
-
-## Структура
-
-```
-ChatGR TG/
-  chatgr_core/core/quests.py
-  chatgr_core/core/dialog.py
-  chatgr_core/core/games.py
-  chatgr_core/repositories/db.py   # migrations + backup_db
-  chatgr_core/bot/reminders.py
-  ...
-```
+# ChatGR TG 1.0.0 beta
 
 ## Запуск
 
-```powershell
-cd "ChatGR TG"
-$env:PYTHONPATH = (Get-Location).Path
-.\.venv\Scripts\python.exe main.py
-```
+`start_tg_bot.bat` из `MyPythonProjects` или `main.py` из этой папки.
+
+## Модули 1.0
+
+- `core/economy.py` — лимиты XP/монет, недельный бонус  
+- `core/facts.py` — факт дня  
+- `core/changelog.py` — что нового  
+- `core/xp.py` — названия уровней  
+- onboarding в `dialog.py`  
+- admin broadcast + ban_reason  
+- `purchases`, `admin_logs` таблицы  
+
+## Legacy
+
+`ChatGR_TG.py` — не основной путь.

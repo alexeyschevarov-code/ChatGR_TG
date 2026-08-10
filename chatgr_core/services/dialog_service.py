@@ -1,11 +1,13 @@
-"""Сервис: DialogEngine + UserRepository (0.8.0 beta)."""
+"""Сервис: DialogEngine + UserRepository (1.0.0 beta)."""
 from __future__ import annotations
 
 import json
+from datetime import datetime
 
-from chatgr_core.core.dialog import DialogEngine, DialogResult
+from chatgr_core.core.dialog import DialogEngine, DialogResult, default_profile, default_state
 from chatgr_core.core.duel import duel_question_text, join_friend_duel, resolve_friend_result
 from chatgr_core.core.quests import format_quests_text
+from chatgr_core.core.xp import level_from_xp, level_title
 from chatgr_core.repositories.users import UserRepository
 
 
@@ -14,14 +16,48 @@ class DialogService:
         self.repo = repo
         self.engine = DialogEngine()
 
+    def start_onboarding(self, tg_user_id: str) -> tuple[str, bool]:
+        """Returns (message, is_new_user_onboarding)."""
+        state, profile = self.repo.load_dialog_context(tg_user_id)
+        if profile.get("onboarding_done") or state.get("name"):
+            profile["onboarding_done"] = True
+            state["onboarding_step"] = 0
+            self.repo.save_dialog_context(tg_user_id, state, profile)
+            return "", False
+        state["onboarding_step"] = 1
+        self.repo.save_dialog_context(tg_user_id, state, profile)
+        return (
+            "<b>Шаг 1/3</b> — как тебя зовут?\n"
+            "Напиши: <b>меня зовут …</b> или просто имя.",
+            True,
+        )
+
     def process_text(self, tg_user_id: str, text: str) -> DialogResult:
         if self.repo.is_banned(tg_user_id):
-            return DialogResult("⛔ Ты заблокирован администратором.", {}, {}, save=False)
+            reason = self.repo.get_ban_reason(tg_user_id)
+            msg = "⛔ Ты заблокирован администратором."
+            if reason:
+                msg += f"\nПричина: {reason}"
+            return DialogResult(msg, {}, {}, save=False)
 
         state, profile = self.repo.load_dialog_context(tg_user_id)
         result = self.engine.handle(text, state=state, profile=profile, last_answers={})
 
-        # friend duel create/join hooks
+        # export flag
+        if result.state.get("_export"):
+            result.state.pop("_export", None)
+            payload = self.build_export(tg_user_id, result.state, result.profile)
+            result.state["_export_json"] = payload
+            result.text = "📦 Экспорт готов — файл отправлен (или текст ниже)."
+
+        # purchase log
+        if result.state.get("_purchase"):
+            item = result.state.pop("_purchase")
+            try:
+                self.repo.log_purchase(tg_user_id, item)
+            except Exception:
+                pass
+
         meta = result.duel_meta or {}
         if meta.get("action") == "create":
             code = meta["code"]
@@ -29,7 +65,6 @@ class DialogService:
             payload["host_id"] = str(tg_user_id)
             self.repo.create_duel(code, tg_user_id, payload["questions"])
             result.state["game_state"] = payload
-            # host starts answering immediately
             result.state["game_state"]["role"] = "host"
             qtext = duel_question_text(result.state["game_state"])
             opts = list(result.state["game_state"]["questions"][0]["options"])
@@ -41,7 +76,6 @@ class DialogService:
                 keyboard="quiz",
                 quiz_options=opts,
             )
-
         elif meta.get("action") == "join":
             code = meta["code"]
             d = self.repo.join_duel(code, tg_user_id)
@@ -73,19 +107,19 @@ class DialogService:
                     quiz_options=opts,
                 )
 
-        # friend duel finish scores
         if result.duel_meta and result.duel_meta.get("code") and result.duel_meta.get("score") is not None:
             m = result.duel_meta
-            d = self.repo.set_duel_score(m["code"], m["role"], m["score"])
-            if d and d.get("status") == "done":
-                i_am_host = m["role"] == "host"
-                result.profile, extra = resolve_friend_result(
-                    int(d["host_score"]),
-                    int(d["guest_score"]),
-                    result.profile,
-                    i_am_host=i_am_host,
-                )
-                result.text = result.text + "\n\n" + extra
+            if m.get("action") not in ("create", "join"):
+                d = self.repo.set_duel_score(m["code"], m["role"], m["score"])
+                if d and d.get("status") == "done":
+                    i_am_host = m["role"] == "host"
+                    result.profile, extra = resolve_friend_result(
+                        int(d["host_score"]),
+                        int(d["guest_score"]),
+                        result.profile,
+                        i_am_host=i_am_host,
+                    )
+                    result.text = result.text + "\n\n" + extra
 
         if result.save:
             self.repo.save_dialog_context(
@@ -97,6 +131,28 @@ class DialogService:
                 topic=result.topic,
             )
         return result
+
+    def build_export(self, tg_user_id: str, state: dict | None = None, profile: dict | None = None) -> str:
+        if state is None or profile is None:
+            state, profile = self.repo.load_dialog_context(tg_user_id)
+        data = {
+            "version": "1.0.0 beta",
+            "exported_at": datetime.now().isoformat(timespec="seconds"),
+            "tg_user_id": str(tg_user_id),
+            "name": state.get("name"),
+            "character": state.get("character"),
+            "last_topic": state.get("last_topic"),
+            "topic_counts": state.get("topic_counts"),
+            "recent_topics": state.get("recent_topics"),
+            "profile": {
+                k: v
+                for k, v in profile.items()
+                if k != "achievements" or True
+            },
+            "level": level_from_xp(int(profile.get("xp") or 0)),
+            "level_title": level_title(level_from_xp(int(profile.get("xp") or 0))),
+        }
+        return json.dumps(data, ensure_ascii=False, indent=2)
 
     def process_quiz_choice(self, tg_user_id: str, choice: int) -> DialogResult:
         if self.repo.is_banned(tg_user_id):
@@ -143,6 +199,9 @@ class DialogService:
 
     def start_quiz(self, tg_user_id: str, category: str = "mixed") -> DialogResult:
         state, profile = self.repo.load_dialog_context(tg_user_id)
+        if int(state.get("onboarding_step") or 0) == 3:
+            state["onboarding_step"] = 0
+            profile["onboarding_done"] = True
         result = self.engine.start_quiz_session(state, profile, category=category)
         self.repo.save_dialog_context(
             tg_user_id, result.state, result.profile,

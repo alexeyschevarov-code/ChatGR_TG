@@ -20,12 +20,16 @@
     XP: {{ user.xp }} · уровень {{ user.level }} · режим {{ user.character }}<br>
     Статус: {% if user.is_banned %}<strong style="color:#b91c1c">ЗАБАНЕН</strong>{% else %}активен{% endif %}
   </p>
+  {% if ban_reason %}
+  <p>Причина бана: <em>{{ ban_reason }}</em></p>
+  {% endif %}
   {% if user.is_banned %}
   <form method="post" action="/users/{{ tg_user_id }}/unban">
     <button class="unban" type="submit">Разбанить</button>
   </form>
   {% else %}
   <form method="post" action="/users/{{ tg_user_id }}/ban" onsubmit="return confirm('Забанить?')">
+    <input type="text" name="reason" placeholder="Причина бана" style="padding:0.3rem;width:60%">
     <button class="ban" type="submit">Забанить</button>
   </form>
   {% endif %}

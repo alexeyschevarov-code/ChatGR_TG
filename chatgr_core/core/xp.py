@@ -1,11 +1,30 @@
-"""XP, уровни и ачивки (чистое ядро без I/O)."""
+"""XP, уровни, названия уровней, ачивки, дневные лимиты."""
 from __future__ import annotations
 
 from chatgr_core.core.content import ACHIEVEMENT_NAMES, XP_PER_LEVEL
 
+# level (min) -> title  (from high to low)
+LEVEL_TITLES = (
+    (20, "Легенда ChatGR"),
+    (15, "Мастер"),
+    (10, "Ветеран"),
+    (7, "Исследователь"),
+    (5, "Игрок"),
+    (3, "Ученик"),
+    (1, "Новичок"),
+)
+
 
 def level_from_xp(xp: int) -> int:
     return max(1, 1 + int(xp) // XP_PER_LEVEL)
+
+
+def level_title(level: int) -> str:
+    level = max(1, int(level))
+    for min_lvl, title in LEVEL_TITLES:
+        if level >= min_lvl:
+            return title
+    return "Новичок"
 
 
 def xp_to_next(xp: int, level: int | None = None) -> int:
@@ -13,11 +32,15 @@ def xp_to_next(xp: int, level: int | None = None) -> int:
     return max(0, level * XP_PER_LEVEL - int(xp))
 
 
+def achievements_progress(profile: dict) -> tuple[int, int, int]:
+    """unlocked, total, percent."""
+    unlocked = len(profile.get("achievements") or [])
+    total = max(1, len(ACHIEVEMENT_NAMES))
+    pct = min(100, int(100 * unlocked / total))
+    return unlocked, total, pct
+
+
 def add_xp(profile: dict, amount: int) -> tuple[dict, list[str]]:
-    """
-    Начисляет XP в dict-профиле.
-    Возвращает (обновлённый_профиль, сообщения_для_пользователя).
-    """
     if amount <= 0:
         return profile, []
     notes: list[str] = []
@@ -25,11 +48,21 @@ def add_xp(profile: dict, amount: int) -> tuple[dict, list[str]]:
     profile.setdefault("xp", 0)
     profile.setdefault("level", 1)
     profile.setdefault("achievements", [])
+
+    from chatgr_core.core.economy import apply_xp_cap
+
+    profile, actual, cap_note = apply_xp_cap(profile, amount)
+    if actual <= 0:
+        return profile, [cap_note] if cap_note else []
+    if cap_note:
+        notes.append(cap_note)
+
     old_level = int(profile["level"])
-    profile["xp"] = int(profile["xp"]) + amount
+    profile["xp"] = int(profile["xp"]) + actual
     profile["level"] = level_from_xp(profile["xp"])
     if profile["level"] > old_level:
-        notes.append(f"🎉 Уровень {profile['level']}! (+{amount} XP)")
+        title = level_title(profile["level"])
+        notes.append(f"🎉 Уровень {profile['level']} — {title}! (+{actual} XP)")
     notes.extend(check_progress_achievements(profile))
     return profile, notes
 

@@ -53,17 +53,25 @@ def complete_quest(profile: dict, key: str) -> tuple[dict, list[str]]:
     if dq.get(key):
         return profile, notes
     dq[key] = True
-    profile["coins"] = int(profile.get("coins") or 0) + COINS_PER_QUEST
-    notes.append(f"✅ Квест: {QUEST_LABELS[key]} (+{COINS_PER_QUEST} 🪙)")
+    from chatgr_core.core.economy import apply_coin_cap
+
+    profile, c_amt, c_note = apply_coin_cap(profile, COINS_PER_QUEST)
+    profile["coins"] = int(profile.get("coins") or 0) + c_amt
+    notes.append(f"✅ Квест: {QUEST_LABELS[key]} (+{c_amt} 🪙)")
+    if c_note:
+        notes.append(c_note)
 
     if all(dq.get(k) for k in QUEST_KEYS) and not dq.get("bonus_claimed"):
         dq["bonus_claimed"] = True
-        profile["coins"] = int(profile["coins"]) + COINS_ALL_BONUS
+        profile, c_amt2, c_note2 = apply_coin_cap(profile, COINS_ALL_BONUS)
+        profile["coins"] = int(profile.get("coins") or 0) + c_amt2
         from chatgr_core.core.xp import add_xp
 
         profile, xp_notes = add_xp(profile, XP_ALL_BONUS)
-        notes.append(f"🎁 Все квесты дня! +{COINS_ALL_BONUS} 🪙 +{XP_ALL_BONUS} XP")
+        notes.append(f"🎁 Все квесты дня! +{c_amt2} 🪙")
         notes.extend(xp_notes)
+        if c_note2:
+            notes.append(c_note2)
 
     profile["daily_quests"] = dq
     return profile, notes
