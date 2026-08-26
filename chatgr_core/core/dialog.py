@@ -237,7 +237,13 @@ def format_help(state: dict) -> str:
 def _memory_hint(state: dict) -> str:
     if random.random() > 0.25:
         return ""
+    lt = state.get("last_topic")
     top = top_topics(state, 1)
+    # не вспоминать старый YouTube, если сейчас говорим про игру
+    if top and top[0][0] != lt:
+        if lt:
+            return ""
+        return f"\n(Кстати, ты часто говоришь про {TOPIC_NAMES.get(top[0][0], top[0][0])}.)"
     if top:
         return f"\n(Кстати, ты часто говоришь про {TOPIC_NAMES.get(top[0][0], top[0][0])}.)"
     if state.get("name") and random.random() < 0.5:
