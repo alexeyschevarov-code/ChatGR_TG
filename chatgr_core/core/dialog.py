@@ -91,6 +91,24 @@ def _push_topic(state: dict, topic: str | None) -> None:
     state["recent_topics"] = recent[:5]
 
 
+def _finish_game(state: dict) -> None:
+    """После игры тема = «игры», а не старый YouTube/космос."""
+    state["game_state"] = None
+    _push_topic(state, "игра")
+
+
+SCARE_PHRASES = {
+    "бу", "буу", "бууу", "бу!", "boo", "пугаю", "напугаю",
+    "ку-ку", "куку", "ку ку", "испуг",
+}
+
+SCARE_REPLIES = [
+    "Ааа! 🐯 Не пугай, я всего лишь бот… хотя тигр внутри есть.",
+    "Ой! Испугался. Ладно, отыгрались — во что играем дальше: «угадай число» или «викторина»?",
+    "Бу! Сам напугался. Давай лучше сыграем, а не пугать друг друга.",
+]
+
+
 def default_profile() -> dict[str, Any]:
     return {
         "favorite_game": None,
@@ -317,8 +335,8 @@ class DialogEngine:
         gstate = state.get("game_state")
         if gstate:
             if user_input in ("стоп", "выход", "хватит"):
-                state["game_state"] = None
-                return DialogResult("Игра окончена. 👋", state, profile)
+                _finish_game(state)
+                return DialogResult("Игра окончена. 👋 Можем болтать или сыграть ещё.", state, profile)
 
             if gstate.get("type") == "duel":
                 opts = list(gstate["questions"][gstate["index"]]["options"])
@@ -333,6 +351,8 @@ class DialogEngine:
                     )
                 new_g, text, profile, _, finished, meta = answer_duel(gstate, choice, profile)
                 state["game_state"] = new_g
+                if finished:
+                    _finish_game(state)
                 return DialogResult(
                     text,
                     state,
@@ -361,6 +381,7 @@ class DialogEngine:
                 kb = None if finished else "quiz"
                 if finished:
                     kb = "quiz_again"
+                    _finish_game(state)
                 return DialogResult(
                     text,
                     state,
@@ -372,6 +393,8 @@ class DialogEngine:
 
             new_g, text, profile, _ = GuessGame.handle(gstate, user_input, profile)
             state["game_state"] = new_g
+            if new_g is None:
+                _finish_game(state)
             return DialogResult(
                 text,
                 state,
@@ -454,6 +477,7 @@ class DialogEngine:
         # duel
         if user_input in ("дуэль", "дуель", "duel"):
             state["game_state"] = start_duel_vs_bot()
+            _push_topic(state, "игра")
             text = "⚔️ Дуэль против бота!\n\n" + duel_question_text(state["game_state"])
             opts = list(state["game_state"]["questions"][0]["options"])
             return DialogResult(text, state, profile, keyboard="quiz", quiz_options=opts)
@@ -512,6 +536,7 @@ class DialogEngine:
             if used:
                 max_att = 13
             state["game_state"] = start_guess(max_attempts=max_att)
+            _push_topic(state, "игра")
             extra = " (буст +3 попытки!)" if used else ""
             return DialogResult(
                 f"Загадал 1–100. {max_att} попыток{extra}. «стоп» — выход. 🎯",
@@ -533,6 +558,14 @@ class DialogEngine:
             if rest:
                 state["name"] = rest.split()[0].capitalize()
                 return DialogResult(f"Приятно, {state['name']}! Запомнил. 🐯", state, profile)
+
+        if user_input in SCARE_PHRASES or user_input.rstrip("!.") in SCARE_PHRASES:
+            return DialogResult(
+                random.choice(SCARE_REPLIES),
+                state,
+                profile,
+                emoji_burst="🐯",
+            )
 
         if any(p in user_input for p in CONTINUE_PHRASES) and state.get("last_topic"):
             lt = state["last_topic"]
@@ -597,7 +630,9 @@ class DialogEngine:
 
         char = state.get("character", "обычный")
         lt = state.get("last_topic")
-        if lt:
+        # короткое «бу» / мусор не считается продолжением YouTube
+        noisy = len(user_input) <= 4 and user_input not in CONTINUE_PHRASES
+        if lt and not noisy:
             label = TOPIC_NAMES.get(lt, lt)
             return DialogResult(
                 f"Не совсем понял 🤔 Мы про {label} — напиши «продолжи», "
@@ -624,6 +659,7 @@ class DialogEngine:
         state = {**default_state(), **state}
         profile = ensure_inventory(ensure_daily_quests({**default_profile(), **profile}))
         state["game_state"] = start_quiz(category=category)
+        _push_topic(state, "игра")
         text = QuizGame.current_question(state["game_state"])
         opts = QuizGame.options(state["game_state"])
         label = QUIZ_CATEGORIES.get(category, category)
@@ -658,6 +694,8 @@ class DialogEngine:
             return DialogResult("Викторина не активна.", state, profile)
         new_g, text, profile, _, finished = QuizGame.answer(gstate, choice, profile)
         state["game_state"] = new_g
+        if finished:
+            _finish_game(state)
         return DialogResult(
             text,
             state,

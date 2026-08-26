@@ -24,7 +24,7 @@ def test_onboarding_flow():
 
 def test_changelog():
     t = format_changelog()
-    assert "1.0.0" in t or "нового" in t.lower()
+    assert "1.0." in t or "нового" in t.lower()
 
 
 def test_fact():

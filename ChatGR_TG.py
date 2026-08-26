@@ -1,7 +1,7 @@
 """
 LEGACY (устарел). Не используй для продакшена.
 
-Актуальный бот 1.0.0 beta:
+Актуальный бот 1.0.1 beta:
   python main.py
   (из папки ChatGR TG, venv .venv на Python 3.12)
 
