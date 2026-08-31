@@ -1,7 +1,7 @@
 """Константы и контент (общие для консоли и Telegram)."""
 from __future__ import annotations
 
-VERSION = "1.0.1 beta"
+VERSION = "1.0.3"
 
 XP_PER_LEVEL = 100
 XP_TOPIC = 2
