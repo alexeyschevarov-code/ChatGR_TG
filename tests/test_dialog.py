@@ -1,4 +1,4 @@
-from chatgr_core.core.dialog import DialogEngine
+from chatgr_core.core.dialog import DialogEngine, _memory_hint, format_memory
 from chatgr_core.core.games import QuizGame, start_quiz
 
 
@@ -62,3 +62,77 @@ def test_continue_after_game_is_games_not_youtube():
     r3 = eng.handle("продолжи", state=r2.state, profile=r2.profile)
     assert "YouTube" not in r3.text
     assert "игр" in r3.text.lower() or "Minecraft" in r3.text or "стратег" in r3.text.lower()
+
+
+def test_start_duel_bot_sets_last_topic_game():
+    eng = DialogEngine()
+    state = {"last_topic": "ютуб", "character": "обычный", "recent_msgs": [], "topic_counts": {}}
+    profile = {"xp": 0, "coins": 0, "achievements": []}
+    r = eng.start_duel_bot(state, profile)
+    assert r.state.get("last_topic") == "игра"
+
+
+def test_boo_then_continue_not_youtube():
+    eng = DialogEngine()
+    state = {
+        "last_topic": "ютуб",
+        "character": "обычный",
+        "recent_msgs": [],
+        "topic_counts": {"ютуб": 9},
+        "game_state": None,
+    }
+    r = eng.handle("бу", state=state, profile={})
+    assert r.state.get("last_topic") != "ютуб"
+    r2 = eng.handle("продолжи", state=r.state, profile=r.profile)
+    assert "YouTube" not in r2.text
+    assert "ютуб" not in r2.text.lower()
+
+
+def test_continue_eshcho_after_game_not_youtube():
+    eng = DialogEngine()
+    state = {
+        "last_topic": "ютуб",
+        "character": "обычный",
+        "recent_msgs": [],
+        "topic_counts": {"ютуб": 9},
+        "game_state": None,
+    }
+    r = eng.handle("угадай число", state=state, profile={"xp": 0, "coins": 0, "achievements": []})
+    r2 = eng.handle("стоп", state=r.state, profile=r.profile)
+    r3 = eng.handle("ещё", state=r2.state, profile=r2.profile)
+    assert "YouTube" not in r3.text
+    assert r2.state.get("last_topic") == "игра"
+
+
+def test_memory_hint_after_game_no_youtube():
+    state = {
+        "last_topic": "игра",
+        "recent_topics": ["игра"],
+        "topic_counts": {"ютуб": 99, "игра": 1},
+        "character": "обычный",
+    }
+    hint = _memory_hint(state)
+    assert "YouTube" not in hint
+    assert "ютуб" not in hint.lower()
+    empty = _memory_hint({"last_topic": None, "topic_counts": {"ютуб": 99}})
+    assert empty == ""
+
+
+def test_forget_context_keeps_name_and_xp():
+    eng = DialogEngine()
+    state = {
+        "name": "Лёша",
+        "last_topic": "ютуб",
+        "recent_topics": ["ютуб", "космос"],
+        "recent_msgs": ["привет"],
+        "topic_counts": {"ютуб": 5},
+        "character": "весёлый",
+        "game_state": None,
+    }
+    profile = {"xp": 42, "coins": 7, "achievements": []}
+    r = eng.handle("забудь контекст", state=state, profile=profile)
+    assert r.state.get("last_topic") is None
+    assert r.state.get("recent_topics") == []
+    assert r.state.get("topic_counts") == {}
+    assert r.state.get("name") == "Лёша"
+    assert r.profile.get("xp") == 42

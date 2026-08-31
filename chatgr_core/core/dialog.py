@@ -150,6 +150,7 @@ def top_topics(state: dict, limit: int = 3) -> list[tuple[str, int]]:
 
 
 def format_memory(state: dict) -> str:
+    """Текущая тема = last_topic / recent_topics. Lifetime counts — только «часто»."""
     lines = ["── Память ChatGR ──", ""]
     if state.get("name"):
         lines.append(f"Тебя зовут: {state['name']}")
@@ -157,16 +158,53 @@ def format_memory(state: dict) -> str:
         lines.append("Имя не знаю. Напиши: меня зовут …")
     lt = state.get("last_topic")
     if lt:
-        lines.append(f"Последняя тема: {TOPIC_NAMES.get(lt, lt)}")
+        lines.append(f"Сейчас говорим про: {TOPIC_NAMES.get(lt, lt)}")
+    else:
+        lines.append("Сейчас темы нет (напиши что-нибудь или «забудь контекст» уже сбросило).")
+    recent = [t for t in (state.get("recent_topics") or []) if t]
+    if recent:
+        labels = [TOPIC_NAMES.get(t, t) for t in recent]
+        lines.append(f"Недавно: {', '.join(labels)}")
     top = top_topics(state, 5)
     lines.append("")
-    lines.append("Топ тем:")
+    lines.append("Часто говорил про (за всё время):")
     if top:
         for i, (t, c) in enumerate(top, 1):
             lines.append(f"  {i}. {TOPIC_NAMES.get(t, t)} — {c}")
     else:
         lines.append("  Пока пусто — поболтай!")
+    lines.append("")
+    lines.append("Сброс сессии: «забудь контекст» / «забудь тему».")
     return "\n".join(lines)
+
+
+def forget_session_context(state: dict) -> dict:
+    """Сбрасывает тему сессии, имя и XP не трогает (имя в state сохраняем)."""
+    name = state.get("name")
+    character = state.get("character", "обычный")
+    spam = state.get("spam_hits", 0)
+    session_msgs = state.get("session_msgs", 0)
+    onboarding = state.get("onboarding_step", 0)
+    fresh = default_state()
+    fresh["name"] = name
+    fresh["character"] = character
+    fresh["spam_hits"] = spam
+    fresh["session_msgs"] = session_msgs
+    fresh["onboarding_step"] = onboarding
+    fresh["last_topic"] = None
+    fresh["recent_topics"] = []
+    fresh["recent_msgs"] = []
+    fresh["topic_counts"] = {}
+    fresh["game_state"] = None
+    return fresh
+
+
+def _memory_hint(state: dict) -> str:
+    """Только last_topic / recent_topics. Lifetime top_topics сюда не подмешиваем."""
+    lt = state.get("last_topic")
+    if not lt:
+        return ""
+    return f"\n(Сейчас тема: {TOPIC_NAMES.get(lt, lt)}.)"
 
 
 def format_session(state: dict, profile: dict) -> str:
@@ -230,25 +268,9 @@ def format_help(state: dict) -> str:
         "  напомни / стоп напоминаний",
         "",
         "Монеты → магазин. Есть дневные лимиты XP/монет.",
+        "  забудь контекст — сбросить текущую тему",
     ]
     return "\n".join(lines)
-
-
-def _memory_hint(state: dict) -> str:
-    if random.random() > 0.25:
-        return ""
-    lt = state.get("last_topic")
-    top = top_topics(state, 1)
-    # не вспоминать старый YouTube, если сейчас говорим про игру
-    if top and top[0][0] != lt:
-        if lt:
-            return ""
-        return f"\n(Кстати, ты часто говоришь про {TOPIC_NAMES.get(top[0][0], top[0][0])}.)"
-    if top:
-        return f"\n(Кстати, ты часто говоришь про {TOPIC_NAMES.get(top[0][0], top[0][0])}.)"
-    if state.get("name") and random.random() < 0.5:
-        return f"\n(Помню тебя, {state['name']}!)"
-    return ""
 
 
 def _style(text: str, profile: dict, topic: str | None = None) -> str:
@@ -492,6 +514,7 @@ class DialogEngine:
             part = user_input.split(maxsplit=1)[1].strip().upper()
             if part in ("БОТ", "BOT"):
                 state["game_state"] = start_duel_vs_bot()
+                _push_topic(state, "игра")
                 text = "⚔️ Дуэль vs бот!\n\n" + duel_question_text(state["game_state"])
                 opts = list(state["game_state"]["questions"][0]["options"])
                 return DialogResult(text, state, profile, keyboard="quiz", quiz_options=opts)
@@ -499,6 +522,7 @@ class DialogEngine:
                 code, dstate = create_friend_duel(state.get("name") or "host")
                 dstate["host_id"] = dstate.get("host_id")  # filled by service
                 state["game_state"] = dstate
+                _push_topic(state, "игра")
                 state["_pending_duel_create"] = True
                 return DialogResult(
                     f"⚔️ Дуэль создана!\nКод: <b>{code}</b>\n"
@@ -565,7 +589,20 @@ class DialogEngine:
                 state["name"] = rest.split()[0].capitalize()
                 return DialogResult(f"Приятно, {state['name']}! Запомнил. 🐯", state, profile)
 
+        if user_input in ("забудь контекст", "забудь тему", "сброс темы", "очисти тему"):
+            name = state.get("name")
+            state = forget_session_context(state)
+            state["name"] = name
+            return DialogResult(
+                "Ок, забыл текущую тему и недавний контекст. "
+                "Имя и XP на месте. Начни новую тему когда захочешь.",
+                state,
+                profile,
+            )
+
         if user_input in SCARE_PHRASES or user_input.rstrip("!.") in SCARE_PHRASES:
+            state["last_topic"] = None
+            # не продолжать YouTube после «бу»; recent_topics тоже не используем как текущую
             return DialogResult(
                 random.choice(SCARE_REPLIES),
                 state,
@@ -573,8 +610,14 @@ class DialogEngine:
                 emoji_burst="🐯",
             )
 
-        if any(p in user_input for p in CONTINUE_PHRASES) and state.get("last_topic"):
-            lt = state["last_topic"]
+        if any(p in user_input for p in CONTINUE_PHRASES):
+            lt = state.get("last_topic")
+            if not lt:
+                return DialogResult(
+                    "Сейчас темы нет — скажи, о чём поговорим, или «помощь».",
+                    state,
+                    profile,
+                )
             pool = _active_pool(state["character"])
             if lt in pool:
                 extra = _pick(pool, lt, last_answers)
@@ -585,7 +628,7 @@ class DialogEngine:
                     profile,
                     lt,
                 )
-                text += _memory_hint(state)
+                # continue/game: без lifetime-подсказки
                 if notes:
                     text += "\n" + "\n".join(notes)
                 return DialogResult(text, state, profile, topic=lt)
@@ -594,7 +637,7 @@ class DialogEngine:
         if mood:
             ans = _pick(MOOD_RESPONSES, mood, last_answers)
             profile, notes = add_xp(profile, XP_MOOD)
-            text = _style(ans, profile, "настроение") + _memory_hint(state)
+            text = _style(ans, profile, "настроение")
             if notes:
                 text += "\n" + "\n".join(notes)
             return DialogResult(
@@ -626,7 +669,7 @@ class DialogEngine:
             if user_input.startswith("а про") or user_input.startswith("про "):
                 label = TOPIC_NAMES.get(topic, topic)
                 ans = f"Ок, про {label}. {ans}"
-            text = _style(ans, profile, topic) + _memory_hint(state)
+            text = _style(ans, profile, topic)
             if notes:
                 text += "\n" + "\n".join(notes)
             burst = reaction_emoji("ok") if random.random() < 0.35 else None
@@ -686,6 +729,8 @@ class DialogEngine:
         if gstate.get("type") == "duel":
             new_g, text, profile, _, finished, meta = answer_duel(gstate, choice, profile)
             state["game_state"] = new_g
+            if finished:
+                _finish_game(state)
             return DialogResult(
                 text,
                 state,
@@ -715,6 +760,7 @@ class DialogEngine:
         state = {**default_state(), **state}
         profile = ensure_inventory({**default_profile(), **profile})
         state["game_state"] = start_duel_vs_bot()
+        _push_topic(state, "игра")
         text = "⚔️ Дуэль против бота!\n\n" + duel_question_text(state["game_state"])
         opts = list(state["game_state"]["questions"][0]["options"])
         return DialogResult(text, state, profile, keyboard="quiz", quiz_options=opts)
