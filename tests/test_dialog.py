@@ -118,6 +118,17 @@ def test_memory_hint_after_game_no_youtube():
     assert empty == ""
 
 
+def test_war_causes_not_menu_loop():
+    eng = DialogEngine()
+    r1 = eng.handle("расскажи про войны")
+    assert r1.state.get("last_topic") == "война"
+    r2 = eng.handle("причины войн", state=r1.state, profile=r1.profile)
+    assert r2.state.get("last_topic") == "причины_войны"
+    low = r2.text.lower()
+    assert "танки, сражения или причины" not in low
+    assert any(w in low for w in ("ресурс", "территор", "союз", "причин"))
+
+
 def test_forget_context_keeps_name_and_xp():
     eng = DialogEngine()
     state = {

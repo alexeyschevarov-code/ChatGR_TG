@@ -1,4 +1,4 @@
-# ChatGR TG 1.0.3
+# ChatGR TG 1.1.4 beta
 
 ## Запуск
 

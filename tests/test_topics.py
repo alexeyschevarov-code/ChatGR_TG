@@ -48,6 +48,12 @@ def test_context_short_followup():
     assert t == "игра"
 
 
+def test_war_causes_phrase():
+    assert find_topic("причины войн") == "причины_войны"
+    assert find_topic("причины войны", last_topic="война") == "причины_войны"
+    assert find_topic("причины", last_topic="война") == "причины_войны"
+
+
 def test_scoring_prefers_phrase():
     s = score_topics("расскажи про космос")
     assert s.get("космос", 0) >= 100

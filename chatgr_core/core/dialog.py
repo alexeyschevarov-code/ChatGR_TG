@@ -44,7 +44,6 @@ from chatgr_core.core.topics import find_mood, find_topic
 from chatgr_core.core.xp import (
     achievements_progress,
     add_xp,
-    check_progress_achievements,
     level_from_xp,
     level_title,
     xp_to_next,
@@ -660,7 +659,6 @@ class DialogEngine:
             pool = _active_pool(state["character"])
             ans = _pick(pool, topic, last_answers) if topic in pool else MODE_FALLBACKS["обычный"]
             profile, notes = add_xp(profile, XP_TOPIC)
-            notes.extend(check_progress_achievements(profile, topic_count=len(counts)))
             profile, qnotes = complete_quest(profile, "talk_topic")
             notes.extend(qnotes)
             if state.get("name") and random.random() < 0.3:

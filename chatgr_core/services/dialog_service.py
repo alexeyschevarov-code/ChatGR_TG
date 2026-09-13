@@ -136,7 +136,7 @@ class DialogService:
         if state is None or profile is None:
             state, profile = self.repo.load_dialog_context(tg_user_id)
         data = {
-            "version": "1.0.3",
+            "version": "1.1.4 beta",
             "exported_at": datetime.now().isoformat(timespec="seconds"),
             "tg_user_id": str(tg_user_id),
             "name": state.get("name"),
