@@ -19,7 +19,9 @@ except ImportError:
     pass
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "change-me-admin")
+_DEFAULT_ADMIN_TOKEN = "change-me-admin"
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", _DEFAULT_ADMIN_TOKEN)
+ADMIN_TOKEN_IS_DEFAULT = ADMIN_TOKEN == _DEFAULT_ADMIN_TOKEN
 ADMIN_USER_IDS = {
     int(x.strip())
     for x in os.getenv("ADMIN_USER_IDS", "").split(",")
@@ -52,3 +54,32 @@ ADMIN_PORT = int(os.getenv("ADMIN_PORT", "8000"))
 LOG_DIR = PROJECT_ROOT / "logs"
 LOG_FILE = LOG_DIR / "chatgr.log"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+
+
+def validate_secrets(strict: bool = False) -> list[str]:
+    """
+    Проверяет небезопасные настройки секретов.
+
+    Возвращает список предупреждений (текстом).
+    Если strict=True (продакшен/webhook) и есть опасная настройка — бросает RuntimeError,
+    чтобы бот не поднялся с дырявой конфигурацией.
+    """
+    problems: list[str] = []
+
+    if ADMIN_TOKEN_IS_DEFAULT:
+        problems.append(
+            "ADMIN_TOKEN не задан (используется пароль по умолчанию 'change-me-admin'). "
+            "Задай свой ADMIN_TOKEN в .env."
+        )
+
+    if USE_WEBHOOK and not WEBHOOK_SECRET:
+        problems.append(
+            "USE_WEBHOOK=1, но WEBHOOK_SECRET пустой — вебхук открыт для любого, "
+            "кто знает URL. Задай WEBHOOK_SECRET в .env."
+        )
+
+    if strict and problems:
+        raise RuntimeError(
+            "Небезопасная конфигурация:\n- " + "\n- ".join(problems)
+        )
+    return problems

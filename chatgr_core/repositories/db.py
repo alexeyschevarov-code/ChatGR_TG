@@ -104,9 +104,16 @@ CREATE INDEX IF NOT EXISTS idx_users_xp ON users(xp DESC);
 def get_connection(db_path: Path | None = None) -> sqlite3.Connection:
     path = Path(db_path or DB_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path), check_same_thread=False)
+    conn = sqlite3.connect(str(path), check_same_thread=False, timeout=5.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # WAL: читатели не блокируют писателя и наоборот — важно, когда база
+    # используется и ботом, и фоновыми задачами (напоминания, бэкап).
+    conn.execute("PRAGMA journal_mode = WAL")
+    # если база занята — подождать до 5 секунд вместо ошибки "database is locked"
+    conn.execute("PRAGMA busy_timeout = 5000")
+    # прочный, но быстрый режим записи на диск
+    conn.execute("PRAGMA synchronous = NORMAL")
     return conn
 
 

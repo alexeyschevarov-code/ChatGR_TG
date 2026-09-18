@@ -8,6 +8,7 @@ from chatgr_core.core.dialog import DialogEngine, DialogResult, default_profile,
 from chatgr_core.core.duel import duel_question_text, join_friend_duel, resolve_friend_result
 from chatgr_core.core.quests import format_quests_text
 from chatgr_core.core.xp import level_from_xp, level_title
+from chatgr_core.config import VERSION
 from chatgr_core.repositories.users import UserRepository
 
 
@@ -136,7 +137,7 @@ class DialogService:
         if state is None or profile is None:
             state, profile = self.repo.load_dialog_context(tg_user_id)
         data = {
-            "version": "1.1.4 beta",
+            "version": VERSION,
             "exported_at": datetime.now().isoformat(timespec="seconds"),
             "tg_user_id": str(tg_user_id),
             "name": state.get("name"),

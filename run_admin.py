@@ -9,13 +9,15 @@ sys.path.insert(0, str(ROOT))
 
 import uvicorn
 
-from chatgr_core.config import ADMIN_HOST, ADMIN_PORT
+from chatgr_core.config import ADMIN_HOST, ADMIN_PORT, validate_secrets
 from chatgr_core.logging_setup import setup_logging
 
 logger = setup_logging("chatgr_core.admin")
 
 
 if __name__ == "__main__":
+    for warning in validate_secrets(strict=False):
+        logger.warning("Безопасность: %s", warning)
     logger.info("Admin panel http://%s:%s (token from ADMIN_TOKEN)", ADMIN_HOST, ADMIN_PORT)
     uvicorn.run(
         "chatgr_core.admin.app:app",

@@ -28,6 +28,7 @@ from chatgr_core.config import (
     WEBHOOK_HOST,
     WEBHOOK_PATH,
     WEBHOOK_SECRET,
+    validate_secrets,
 )
 from chatgr_core.logging_setup import setup_logging
 
@@ -69,6 +70,9 @@ async def run_webhook() -> None:
 
 
 def main() -> None:
+    # В webhook-режиме (продакшен) секреты обязательны — иначе падаем сразу.
+    for warning in validate_secrets(strict=USE_WEBHOOK):
+        logger.warning("Безопасность: %s", warning)
     try:
         if USE_WEBHOOK:
             asyncio.run(run_webhook())
