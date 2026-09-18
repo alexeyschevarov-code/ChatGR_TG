@@ -5,7 +5,7 @@ from chatgr_core.core.content import VERSION
 
 CHANGELOG = [
     (
-        "1.1.4 beta",
+        "1.1.6 beta",
         [
             "«Причины войн» — рассказ, а не повтор меню «танки / сражения»",
             "Ветки: причины войн, сражения, танки",

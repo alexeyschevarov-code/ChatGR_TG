@@ -1,4 +1,4 @@
-# ChatGR TG 1.1.4 beta
+# ChatGR TG 1.1.6 beta
 # Рекомендуется Python 3.11–3.13 (не 3.15 beta)
 
 aiogram>=3.4.0
